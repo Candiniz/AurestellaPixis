@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  aurestella-api:
+    build: .
+    container_name: aurestella_ia
+    ports:
+      - "8000:8000"
+    environment:
+      # O compose vai puxar esse valor do arquivo .env ou do terminal
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    restart: unless-stopped # Reinicia a API automaticamente se a VPS for reiniciada

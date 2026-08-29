@@ -59,7 +59,7 @@ class RequisicaoMinecraft(BaseModel):
 
 def chamar_roteador_gemini(comando: str, tentativas=3):
     api_key = os.environ.get("GEMINI_API_KEY")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
@@ -118,7 +118,7 @@ def chamar_gemini_rag(termo_pesquisa: str, fonte: str, tentativas=3):
             with open(os.path.join(caminho_quests, matches[0]), "r", encoding="utf-8") as f:
                 conteudo_mod_local = f.read()
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella. Personalidade: leal, pragmática, e direta (estilo Jarvis). "

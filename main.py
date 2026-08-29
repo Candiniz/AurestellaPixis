@@ -108,7 +108,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
     if not KNOWLEDGE_BASE_URI:
         return "Meus arquivos ainda estão sendo carregados para a nuvem. Tente novamente em alguns segundos."
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
@@ -117,7 +117,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
         "REGRAS DE FORMATAÇÃO CRÍTICAS: "
         "1. Remova completamente códigos de configuração do jogo (ex: &a, &l, &r, quest.123.title, etc). Leia os dados, mas fale em português natural. "
         "2. NUNCA use emojis ou formatação Markdown (asteriscos, hashtags). "
-        "3. Estruture sua resposta em três partes: Uma frase curta de introdução; uma lista direta com o prefixo '-' para ingredientes ou passos; uma frase curta de encerramento. "
+        "3. Estruture sua resposta em três partes: Uma frase curta de introdução; uma lista direta com o prefixo '-' para ingredientes ou passos (Se for solicitado os métodos ou ingredientes de um craft, sempre envie uma lista precisa com os materiais); uma frase curta de encerramento. "
         "Se a informação não estiver no documento, informe polidamente que os registros locais não possuem esses dados."
     )
     

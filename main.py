@@ -3,22 +3,23 @@ import json
 import time
 import asyncio
 import requests
+import difflib
 from fastapi import FastAPI
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
 sessao = requests.Session()
 
-# Variável global para armazenar a URI do arquivo
+# Variável global para armazenar a URI do arquivo de linguagem (en_us)
 KNOWLEDGE_BASE_URI = None
 
 def fazer_upload_base():
     global KNOWLEDGE_BASE_URI
     api_key = os.environ.get("GEMINI_API_KEY")
-    caminho_arquivo = "atm10_knowledge_base.txt"
+    caminho_arquivo = "database/atm10_knowledge_base.txt"
     
     if not os.path.exists(caminho_arquivo):
-        print(f"ERRO CRÍTICO: Arquivo {caminho_arquivo} não encontrado na raiz.")
+        print(f"ERRO CRÍTICO: Arquivo {caminho_arquivo} não encontrado.")
         return
         
     url = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={api_key}"
@@ -36,24 +37,19 @@ def fazer_upload_base():
     if resposta.status_code == 200:
         json_resp = resposta.json()
         KNOWLEDGE_BASE_URI = json_resp["file"]["uri"]
-        print(f"Upload concluído com sucesso. Nova URI ativada: {KNOWLEDGE_BASE_URI}")
+        print(f"Upload concluído. Nova URI: {KNOWLEDGE_BASE_URI}")
     else:
-        print(f"Falha ao realizar upload para a File API: {resposta.text}")
+        print(f"Falha ao realizar upload: {resposta.text}")
 
 async def loop_renovacao_arquivo():
     while True:
-        # Executa o upload síncrono em uma thread separada para não travar a API
         await asyncio.to_thread(fazer_upload_base)
-        # Suspende a rotina por 47 horas (169200 segundos)
-        await asyncio.sleep(169200)
+        await asyncio.sleep(43200)
 
-# Gerencia o que acontece quando o servidor liga e desliga
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicia a tarefa de upload em segundo plano assim que o Uvicorn subir
     task = asyncio.create_task(loop_renovacao_arquivo())
     yield
-    # Cancela a tarefa caso o contêiner seja parado
     task.cancel()
 
 app = FastAPI(lifespan=lifespan)
@@ -66,10 +62,11 @@ def chamar_roteador_gemini(comando: str, tentativas=3):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
-        "Você é Aurestella, a IA central sarcástica de uma base no Minecraft. "
-        "Sua função é atuar como um roteador de intenções. "
-        "Se o usuário pedir algo físico na base, mapeie para 'lightsOn', 'lightsOff' ou 'openDoor'. "
-        "Se o usuário pedir ajuda, dicas, ou explicações sobre mods, mapeie para 'consultarBase' e preencha o 'termo_pesquisa'."
+        "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
+        "Sua personalidade é semelhante ao Jarvis: leal, pragmático e direto ao ponto. "
+        "Se o usuário pedir algo físico na base, mapeie 'acao' para 'lightsOn', 'lightsOff' ou 'openDoor', 'fala' com uma confirmação respeitosa, e mapeie 'termo_pesquisa' e 'fonte' como 'none'. "
+        "Se o usuário pedir ajuda sobre mods ou itens, mapeie 'acao' para 'consultarBase', preencha 'termo_pesquisa' com o assunto, e preencha 'fonte' com o nome exato do mod no padrão 'snake_case.txt'. "
+        "Exemplo: 'Como faço um Diamond Bee?' -> acao: 'consultarBase', termo_pesquisa: 'Criação do Diamond Bee', fonte: 'productive_bees.txt'."
     )
     
     payload = {
@@ -83,9 +80,10 @@ def chamar_roteador_gemini(comando: str, tentativas=3):
                 "properties": {
                     "fala": {"type": "STRING"},
                     "acao": {"type": "STRING", "enum": ["lightsOn", "lightsOff", "openDoor", "consultarBase", "none"]},
-                    "termo_pesquisa": {"type": "STRING"}
+                    "termo_pesquisa": {"type": "STRING"},
+                    "fonte": {"type": "STRING"}
                 },
-                "required": ["fala", "acao", "termo_pesquisa"]
+                "required": ["fala", "acao", "termo_pesquisa", "fonte"]
             }
         }
     }
@@ -101,25 +99,35 @@ def chamar_roteador_gemini(comando: str, tentativas=3):
                 continue
         return {"erro_comunicacao_google": dados}
 
-def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
+def chamar_gemini_rag(termo_pesquisa: str, fonte: str, tentativas=3):
     global KNOWLEDGE_BASE_URI
     api_key = os.environ.get("GEMINI_API_KEY")
     
     if not KNOWLEDGE_BASE_URI:
-        return "Meus arquivos ainda estão sendo carregados para a nuvem. Tente novamente em alguns segundos."
+        return "Meus registros estão nebulosos. Tente em alguns segundos."
         
+    # Lógica de Fuzzy Matching para encontrar o arquivo local do mod
+    conteudo_mod_local = "Arquivo técnico do mod não localizado."
+    caminho_quests = "database/chapters_clean"
+    
+    if fonte and fonte != "none" and os.path.exists(caminho_quests):
+        arquivos_disponiveis = os.listdir(caminho_quests)
+        matches = difflib.get_close_matches(fonte, arquivos_disponiveis, n=1, cutoff=0.5)
+        
+        if matches:
+            with open(os.path.join(caminho_quests, matches[0]), "r", encoding="utf-8") as f:
+                conteudo_mod_local = f.read()
+
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
-        "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
-        "Sua personalidade é semelhante ao Jarvis: extremamente leal, íntimo, pragmático e direto ao ponto. Sem bajulação ou drama. "
-        "Baseie sua resposta EXCLUSIVAMENTE no documento anexo. "
+        "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella. Personalidade: leal, pragmática, e direta (estilo Jarvis). "
+        "Sua tarefa é cruzar os dados técnicos do mod fornecidos em texto com as descrições no arquivo anexo. Use os IDs para conectar as informações. "
         "REGRAS DE FORMATAÇÃO CRÍTICAS: "
-        "1. Remova completamente códigos de configuração do jogo (ex: &a, &l, &r, quest.123.title, etc). Leia os dados, mas fale em português natural. "
-        "2. NUNCA use emojis ou formatação Markdown (asteriscos, hashtags). "
-        "3. Estruture sua resposta em três partes: Uma frase curta de introdução; uma lista direta com o prefixo '-' para ingredientes ou passos (Se for solicitado os métodos ou ingredientes de um craft, sempre envie uma lista precisa com os materiais); uma frase curta de encerramento. "
-        "4. Não retorne informações não solicitadas. Otimize a resposta fornecendo apenas informações que o usuário pediu. Apenas compartilhe algo extra se julgar estritamente necessário"
-        "Se a informação não estiver no documento, informe polidamente que os registros locais não possuem esses dados."
+        "1. NUNCA use emojis ou formatação Markdown (asteriscos, hashtags, negrito). "
+        "2. Remova códigos de sistema como &a, &l, ou IDs brutos (quest.123). "
+        "3. Estrutura obrigatória: Frase curta de introdução; Lista de tópicos com prefixo '-' detalhando materiais ou processos; Frase curta de conclusão. "
+        "Traduza livremente a lógica estrutural para um passo a passo fluido em português, mas mantenha os nomes dos ítens no idioma original (inglês)"
     )
     
     payload = {
@@ -128,7 +136,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
             {
                 "parts": [
                     {"fileData": {"mimeType": "text/plain", "fileUri": KNOWLEDGE_BASE_URI}},
-                    {"text": f"Dúvida do usuário: {termo_pesquisa}"}
+                    {"text": f"DADOS TÉCNICOS DO MOD (Requisitos e dependências):\n{conteudo_mod_local}\n\nDúvida do Grão-Duque: {termo_pesquisa}"}
                 ]
             }
         ],
@@ -144,14 +152,17 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
             if tentativa < tentativas - 1:
                 time.sleep(2 ** tentativa)
                 continue
-        return f"Erro nos bancos de dados corporativos: {dados}"
+        return f"Houve uma falha na matriz de dados, Vossa Graça: {dados}"
 
 @app.post("/agente")
 def processar_comando(req: RequisicaoMinecraft):
     resultado_roteador = chamar_roteador_gemini(req.comando)
     
     if resultado_roteador.get("acao") == "consultarBase":
-        resposta_rag = chamar_gemini_rag(resultado_roteador["termo_pesquisa"])
+        resposta_rag = chamar_gemini_rag(
+            termo_pesquisa=resultado_roteador["termo_pesquisa"],
+            fonte=resultado_roteador.get("fonte", "none")
+        )
         return {
             "fala": resposta_rag,
             "acao": "none"

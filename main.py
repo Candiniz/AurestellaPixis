@@ -4,7 +4,7 @@ import time
 import asyncio
 import requests
 import difflib
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
@@ -163,9 +163,10 @@ def processar_comando(req: RequisicaoMinecraft):
             termo_pesquisa=resultado_roteador["termo_pesquisa"],
             fonte=resultado_roteador.get("fonte", "none")
         )
-        return {
+        resposta_final = {
             "fala": resposta_rag,
             "acao": "none"
         }
+        return Response(content=json.dumps(resposta_final, ensure_ascii=True), media_type="application/json")
     
-    return resultado_roteador
+    return Response(content=json.dumps(resultado_roteador, ensure_ascii=True), media_type="application/json")

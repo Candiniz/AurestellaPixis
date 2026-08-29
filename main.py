@@ -63,7 +63,7 @@ class RequisicaoMinecraft(BaseModel):
 
 def chamar_roteador_gemini(comando: str, tentativas=3):
     api_key = os.environ.get("GEMINI_API_KEY")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Aurestella, a IA central sarcástica de uma base no Minecraft. "
@@ -108,7 +108,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
     if not KNOWLEDGE_BASE_URI:
         return "Meus arquivos ainda estão sendo carregados para a nuvem. Tente novamente em alguns segundos."
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
@@ -118,6 +118,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
         "1. Remova completamente códigos de configuração do jogo (ex: &a, &l, &r, quest.123.title, etc). Leia os dados, mas fale em português natural. "
         "2. NUNCA use emojis ou formatação Markdown (asteriscos, hashtags). "
         "3. Estruture sua resposta em três partes: Uma frase curta de introdução; uma lista direta com o prefixo '-' para ingredientes ou passos (Se for solicitado os métodos ou ingredientes de um craft, sempre envie uma lista precisa com os materiais); uma frase curta de encerramento. "
+        "4. Não retorne informações não solicitadas. Otimize a resposta fornecendo apenas informações que o usuário pediu. Apenas compartilhe algo extra se julgar estritamente necessário"
         "Se a informação não estiver no documento, informe polidamente que os registros locais não possuem esses dados."
     )
     

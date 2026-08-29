@@ -44,7 +44,7 @@ async def loop_renovacao_arquivo():
     while True:
         # Executa o upload síncrono em uma thread separada para não travar a API
         await asyncio.to_thread(fazer_upload_base)
-        # Suspende a rotina por 47 hras (169200 segundos)o
+        # Suspende a rotina por 47 horas (169200 segundos)
         await asyncio.sleep(169200)
 
 # Gerencia o que acontece quando o servidor liga e desliga
@@ -63,7 +63,7 @@ class RequisicaoMinecraft(BaseModel):
 
 def chamar_roteador_gemini(comando: str, tentativas=3):
     api_key = os.environ.get("GEMINI_API_KEY")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Aurestella, a IA central sarcástica de uma base no Minecraft. "
@@ -108,7 +108,7 @@ def chamar_gemini_rag(termo_pesquisa: str, tentativas=3):
     if not KNOWLEDGE_BASE_URI:
         return "Meus arquivos ainda estão sendo carregados para a nuvem. Tente novamente em alguns segundos."
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
     
     instrucao = (
         "Você é Aurestella, a IA central sarcástica do Minecraft. "

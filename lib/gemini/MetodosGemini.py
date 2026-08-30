@@ -5,6 +5,7 @@ import asyncio
 import requests
 import difflib
 
+# A Classe FilesApi está oficialmente como LEGADO
 class FilesApi:
     def __init__(self):
         self.knowledge_base_uri = None
@@ -94,64 +95,56 @@ class Gemini:
                     continue
             return {"erro_comunicacao_google": dados}
 
-    def chamar_gemini_rag(self, termo_pesquisa: str, fonte: str, tentativas=2):
+    async def chamar_gemini_rag(self, termo_pesquisa: str, tentativas=3):
         api_key = os.environ.get("GEMINI_API_KEY")
-        knowledge_base_uri = self.files_api.knowledge_base_uri
         
-        if not knowledge_base_uri:
-            return "Meus registros estão nebulosos. Tente em alguns segundos."
-            
-        # Lógica de Fuzzy Matching para encontrar o arquivo local do mod
-        conteudo_mod_local = "Arquivo técnico do mod não localizado."
-        caminho_quests = "database/chapters_clean"
+        # 1. Converte a dúvida do Grão-Duque em números (vetor)
+        url_embed = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
+        payload_embed = {"model": "models/text-embedding-004", "content": {"parts": [{"text": termo_pesquisa}]}}
+        res_embed = self.sessao.post(url_embed, json=payload_embed).json()
         
-        if fonte and fonte != "none" and os.path.exists(caminho_quests):
-            arquivos_disponiveis = os.listdir(caminho_quests)
-            matches = difflib.get_close_matches(fonte, arquivos_disponiveis, n=1, cutoff=0.5)
+        if 'embedding' not in res_embed:
+            return {"fala": "Falha nos sensores vetoriais, senhor.", "usageMetadata": {}}
             
-            if matches:
-                with open(os.path.join(caminho_quests, matches[0]), "r", encoding="utf-8") as f:
-                    conteudo_mod_local = f.read()
+        vetor_pergunta = str(res_embed['embedding']['values'])
+        
+        # 2. Resgate de Similaridade no PostgreSQL (Pegando os 3 textos mais próximos)
+        try:
+            conn = await asyncpg.connect(user="pyxis_admin", password=os.environ.get("DB_PASSWORD"), database="telemetria", host="db")
+            linhas = await conn.fetch('''
+                SELECT texto FROM base_conhecimento 
+                ORDER BY embedding <=> $1 LIMIT 3
+            ''', vetor_pergunta)
+            await conn.close()
+            contexto_exato = "\n---\n".join([linha['texto'] for linha in linhas])
+        except Exception as e:
+            return {"fala": f"Erro de conexão neural com o banco de dados: {e}", "usageMetadata": {}}
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
-        
+        # 3. Geração Final (Payload minúsculo enviado ao Gemini Flash)
+        url_gen = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
         instrucao = (
             "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella. Personalidade: leal, pragmática, e direta (estilo Jarvis). "
-            "Sua tarefa é cruzar os dados técnicos do mod fornecidos em texto com as descrições no arquivo anexo. Use os IDs para conectar as informações. "
+            "Sua tarefa é cruzar os dados técnicos do mod fornecidos em texto com a dúvida do usuário. "
             "REGRAS DE FORMATAÇÃO CRÍTICAS: "
-            "1. NUNCA use emojis ou formatação Markdown (asteriscos, hashtags, negrito). "
-            "2. Remova códigos de sistema como &a, &l, ou IDs brutos (quest.123). "
-            "3. Estrutura obrigatória: Frase curta de introdução; Lista de tópicos com prefixo '-' detalhando materiais ou processos; Frase curta de conclusão. "
-            "Traduza livremente a lógica estrutural para um passo a passo fluido em português, mas mantenha os nomes dos ítens no idioma original (inglês)"
+            "1. NUNCA use emojis ou formatação Markdown. "
+            "2. Remova códigos de sistema. "
+            "3. Estrutura obrigatória: Frase curta de introdução; Lista de tópicos detalhando processos; Frase curta de conclusão."
         )
         
         payload = {
             "systemInstruction": {"parts": [{"text": instrucao}]},
-            "contents": [
-                {
-                    "parts": [
-                        {"fileData": {"mimeType": "text/plain", "fileUri": knowledge_base_uri}},
-                        {"text": f"DADOS TÉCNICOS DO MOD (Requisitos e dependências):\n{conteudo_mod_local}\n\nDúvida do Grão-Duque: {termo_pesquisa}"}
-                    ]
-                }
-            ],
+            "contents": [{"parts": [{"text": f"DADOS RECUPERADOS (Base de Conhecimento ATM10):\n{contexto_exato}\n\nDúvida do Grão-Duque: {termo_pesquisa}"}]}],
             "generationConfig": {"temperature": 0.2}
         }
         
         for tentativa in range(tentativas):
-            resposta = self.sessao.post(url, json=payload, headers={"Content-Type": "application/json"})
+            resposta = self.sessao.post(url_gen, json=payload, headers={"Content-Type": "application/json"})
             dados = resposta.json()
             if resposta.status_code == 200 and "candidates" in dados:
-                texto_resposta = dados["candidates"][0]["content"]["parts"][0]["text"]
-                usage = dados.get("usageMetadata", {})
-                
-                # Retorna uma tupla ou um dicionário estruturado contendo a resposta e o uso
                 return {
-                    "fala": texto_resposta,
-                    "usageMetadata": usage
+                    "fala": dados["candidates"][0]["content"]["parts"][0]["text"],
+                    "usageMetadata": dados.get("usageMetadata", {})
                 }
-            if "error" in dados and dados["error"].get("code") in [503, 429]:
-                if tentativa < tentativas - 1:
-                    time.sleep(2 ** tentativa)
-                    continue
-            return f"Houve uma falha na matriz de dados, Vossa Graça: {dados}"
+            time.sleep(2 ** tentativa)
+            
+        return {"fala": "Falha na matriz de geração do RAG.", "usageMetadata": {}}

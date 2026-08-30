@@ -6,16 +6,12 @@ from fastapi import FastAPI, Response, Depends, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from lib.gemini.MetodosGemini import Gemini, FilesApi
+from lib.gemini.MetodosGemini import Gemini
 
-
-files_api = FilesApi()
-gemini = Gemini(files_api)
+gemini = Gemini()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(files_api.loop_renovacao_arquivo())
-
     # Conecta no PostgreSQL e garante a criação da tabela
     # Tenta conectar ao banco até 5 vezes, esperando 3 segundos entre cada tentativa
     for tentativa in range(5):
@@ -26,6 +22,15 @@ async def lifespan(app: FastAPI):
                 database="telemetria",
                 host="db"
             )
+            # Instala a extensão vetorial e cria a NOVA tabela de embeddings
+            await conn.execute('CREATE EXTENSION IF NOT EXISTS vector;')
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS base_conhecimento (
+                    id SERIAL PRIMARY KEY,
+                    texto TEXT NOT NULL,
+                    embedding vector(768)
+                );
+            ''')
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS consumo_tokens (
                     id SERIAL PRIMARY KEY,
@@ -93,7 +98,7 @@ async def registrar_telemetria(endpoint: str, latencia: float, usage: dict):
         print(f"Erro ao salvar telemetria no banco: {e}")
 
 @app.post("/agente")
-def processar_comando(
+async def processar_comando(
     req: RequisicaoMinecraft, 
     background_tasks: BackgroundTasks,
     api_key: str = Depends(verificar_api_key)
@@ -113,13 +118,11 @@ def processar_comando(
 
     # Executa o rag (3.5 Flash)
     if resultado_roteador.get("acao") == "consultarBase":
-        resposta_rag = gemini.chamar_gemini_rag(
-            termo_pesquisa=resultado_roteador["termo_pesquisa"],
-            fonte=resultado_roteador.get("fonte", "none")
-        )
+        resposta_rag = await gemini.chamar_gemini_rag(termo_pesquisa=resultado_roteador["termo_pesquisa"])
         fala_rag = resposta_rag.get("fala", "")
         usage_rag = resposta_rag.get("usageMetadata", {})
-        background_tasks.add_task(registrar_telemetria, "/agente-rag", latencia, usage_rag)
+        latencia_total = time.time() - inicio
+        background_tasks.add_task(registrar_telemetria, "/agente-rag", latencia_total, usage_rag)
 
         resposta_final = {
             "fala": fala_rag,

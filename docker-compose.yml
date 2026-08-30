@@ -10,6 +10,7 @@ services:
       # O compose vai puxar esse valor do arquivo .env ou do terminal
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PYXIS_API_KEY=${PYXIS_API_KEY}
+      - DB_PASSWORD=${DB_PASSWORD}
     restart: unless-stopped # Reinicia a API automaticamente se a VPS for reiniciada
     depends_on:
       - db

@@ -64,10 +64,59 @@ async def verificar_api_key(api_key: str = Security(api_key_header)):
 class RequisicaoMinecraft(BaseModel):
     comando: str
 
+import time
+from fastapi import BackgroundTasks  # <-- 1. Importe o BackgroundTasks
+
+# Função auxiliar assíncrona para gravar no banco sem travar a resposta
+async def registrar_telemetria(endpoint: str, latencia: float, usage: dict):
+    if not usage:
+        return
+    try:
+        conn = await asyncpg.connect(
+            user="pyxis_admin",
+            password=os.environ.get("DB_PASSWORD"),
+            database="telemetria",
+            host="db"
+        )
+        await conn.execute('''
+            INSERT INTO consumo_tokens (endpoint, latencia_ms, prompt_tokens, output_tokens, total_tokens)
+            VALUES ($1, $2, $3, $4, $5)
+        ''', 
+            endpoint, 
+            latencia * 1000,  # Convertendo para milissegundos
+            usage.get("promptTokenCount", 0),
+            usage.get("candidatesTokenCount", 0),
+            usage.get("totalTokenCount", 0)
+        )
+        await conn.close()
+    except Exception as e:
+        print(f"Erro ao salvar telemetria no banco: {e}")
+
 @app.post("/agente")
-def processar_comando(req: RequisicaoMinecraft, api_key: str = Depends(verificar_api_key)):
+def processar_comando(
+    req: RequisicaoMinecraft, 
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verificar_api_key)
+):
+    inicio = time.time()
+
+    # Executa o roteador (3.5 Flash-Lite)
+    resultado_roteador = gemini.chamar_roteador_gemini(req.comando)
+
+    # Executa o roteador (agora com Flash-Lite)
     resultado_roteador = gemini.chamar_roteador_gemini(req.comando)
     
+    # Exemplo simplificado capturando metadados (certifique-se de que sua classe Gemini 
+    # retorna o dicionário completo 'usageMetadata' junto com a resposta)
+    usage = resultado_roteador.pop("usageMetadata", {}) 
+    
+    fim = time.time()
+    latencia = fim - inicio
+
+    # 3. Dispara a gravação em segundo plano após a resposta já ter sido enviada
+    background_tasks.add_task(registrar_telemetria, "/agente", latencia, usage)
+
+    # Executa o rag (3.5 Flash)
     if resultado_roteador.get("acao") == "consultarBase":
         resposta_rag = gemini.chamar_gemini_rag(
             termo_pesquisa=resultado_roteador["termo_pesquisa"],

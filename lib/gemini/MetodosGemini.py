@@ -81,7 +81,13 @@ class Gemini:
             resposta = self.sessao.post(url, json=payload, headers={"Content-Type": "application/json"})
             dados = resposta.json()
             if resposta.status_code == 200 and "candidates" in dados:
-                return json.loads(dados["candidates"][0]["content"]["parts"][0]["text"])
+                texto_resposta = dados["candidates"][0]["content"]["parts"][0]["text"]
+                conteudo_json = json.loads(texto_resposta)
+                usage = dados.get("usageMetadata", {})
+
+                # Injeta o usage dentro do dicionário de retorno
+                conteudo_json["usageMetadata"] = usage
+                return conteudo_json
             if "error" in dados and dados["error"].get("code") in [503, 429]:
                 if tentativa < tentativas - 1:
                     time.sleep(2 ** tentativa)
@@ -136,7 +142,14 @@ class Gemini:
             resposta = self.sessao.post(url, json=payload, headers={"Content-Type": "application/json"})
             dados = resposta.json()
             if resposta.status_code == 200 and "candidates" in dados:
-                return dados["candidates"][0]["content"]["parts"][0]["text"]
+                texto_resposta = dados["candidates"][0]["content"]["parts"][0]["text"]
+                usage = dados.get("usageMetadata", {})
+                
+                # Retorna uma tupla ou um dicionário estruturado contendo a resposta e o uso
+                return {
+                    "fala": texto_resposta,
+                    "usageMetadata": usage
+                }
             if "error" in dados and dados["error"].get("code") in [503, 429]:
                 if tentativa < tentativas - 1:
                     time.sleep(2 ** tentativa)

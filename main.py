@@ -102,19 +102,14 @@ def processar_comando(
 
     # Executa o roteador (3.5 Flash-Lite)
     resultado_roteador = gemini.chamar_roteador_gemini(req.comando)
-
-    # Executa o roteador (agora com Flash-Lite)
-    resultado_roteador = gemini.chamar_roteador_gemini(req.comando)
-    
-    # Exemplo simplificado capturando metadados (certifique-se de que sua classe Gemini 
-    # retorna o dicionário completo 'usageMetadata' junto com a resposta)
+    # Capturando metadados
     usage = resultado_roteador.pop("usageMetadata", {}) 
     
     fim = time.time()
     latencia = fim - inicio
 
     # 3. Dispara a gravação em segundo plano após a resposta já ter sido enviada
-    background_tasks.add_task(registrar_telemetria, "/agente", latencia, usage)
+    background_tasks.add_task(registrar_telemetria, "/agente-roteador", latencia, usage)
 
     # Executa o rag (3.5 Flash)
     if resultado_roteador.get("acao") == "consultarBase":
@@ -122,8 +117,12 @@ def processar_comando(
             termo_pesquisa=resultado_roteador["termo_pesquisa"],
             fonte=resultado_roteador.get("fonte", "none")
         )
+        fala_rag = resposta_rag.get("fala", "")
+        usage_rag = resposta_rag.get("usageMetadata", {})
+        background_tasks.add_task(registrar_telemetria, "/agente-rag", latencia, usage_rag)
+
         resposta_final = {
-            "fala": resposta_rag,
+            "fala": fala_rag,
             "acao": "none"
         }
         return Response(content=json.dumps(resposta_final, ensure_ascii=True), media_type="application/json")

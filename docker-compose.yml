@@ -9,4 +9,23 @@ services:
     environment:
       # O compose vai puxar esse valor do arquivo .env ou do terminal
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYXIS_API_KEY=${PYXIS_API_KEY}
     restart: unless-stopped # Reinicia a API automaticamente se a VPS for reiniciada
+    depends_on:
+      - db
+  
+  db:
+    image: postgres:15-alpine
+    container_name: aurestella_telemetry
+    restart: always
+    environment:
+      POSTGRES_USER: pyxis_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: telemetria
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

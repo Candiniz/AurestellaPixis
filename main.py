@@ -17,29 +17,32 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(files_api.loop_renovacao_arquivo())
 
     # Conecta no PostgreSQL e garante a criação da tabela
-    try:
-        # O 'host' é "db", que é exatamente o nome do serviço no docker-compose.yml
-        conn = await asyncpg.connect(
-            user="pyxis_admin",
-            password=os.environ.get("DB_PASSWORD"),
-            database="telemetria",
-            host="db" 
-        )
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS consumo_tokens (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                endpoint VARCHAR(50) NOT NULL,
-                latencia_ms REAL,
-                prompt_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER
-            );
-        ''')
-        await conn.close()
-        print("Tabela de telemetria verificada/criada com sucesso.")
-    except Exception as e:
-        print(f"Aviso: Não foi possível conectar ao banco de dados: {e}")
+    # Tenta conectar ao banco até 5 vezes, esperando 3 segundos entre cada tentativa
+    for tentativa in range(5):
+        try:
+            conn = await asyncpg.connect(
+                user="pyxis_admin",
+                password=os.environ.get("DB_PASSWORD"),
+                database="telemetria",
+                host="db"
+            )
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS consumo_tokens (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    endpoint VARCHAR(50) NOT NULL,
+                    latencia_ms REAL,
+                    prompt_tokens INTEGER,
+                    output_tokens INTEGER,
+                    total_tokens INTEGER
+                );
+            ''')
+            await conn.close()
+            print("Tabela de telemetria verificada/criada com sucesso.")
+            break  # Sai do laço se a conexão for um sucesso
+        except Exception as e:
+            print(f"Aguardando banco de dados (Tentativa {tentativa+1}/5)...")
+            await asyncio.sleep(3)
         
     yield
     task.cancel()
@@ -77,3 +80,28 @@ def processar_comando(req: RequisicaoMinecraft, api_key: str = Depends(verificar
         return Response(content=json.dumps(resposta_final, ensure_ascii=True), media_type="application/json")
     
     return Response(content=json.dumps(resultado_roteador, ensure_ascii=True), media_type="application/json")
+
+@app.get("/telemetria")
+async def obter_telemetria(api_key: str = Depends(verificar_api_key)):
+    try:
+        conn = await asyncpg.connect(
+            user="pyxis_admin",
+            password=os.environ.get("DB_PASSWORD"),
+            database="telemetria",
+            host="db"
+        )
+        # Busca a soma total e a última requisição
+        registro = await conn.fetchrow('''
+            SELECT 
+                SUM(total_tokens) as tokens_gastos,
+                COUNT(id) as total_requisicoes
+            FROM consumo_tokens
+        ''')
+        await conn.close()
+
+        return {
+            "tokens_totais": registro["tokens_gastos"] or 0,
+            "requisicoes": registro["total_requisicoes"] or 0
+        }
+    except Exception as e:
+        return {"erro": str(e)}

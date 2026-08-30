@@ -1,19 +1,20 @@
-version: '3.8'
-
 services:
   aurestella-api:
     build: .
     container_name: aurestella_ia
     ports:
       - "8000:8000"
+    volumes:
+      - .:/app
     environment:
-      # O compose vai puxar esse valor do arquivo .env ou do terminal
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PYXIS_API_KEY=${PYXIS_API_KEY}
       - DB_PASSWORD=${DB_PASSWORD}
-    restart: unless-stopped # Reinicia a API automaticamente se a VPS for reiniciada
+    restart: unless-stopped
     depends_on:
       - db
+    networks:
+      - pyxis_net
   
   db:
     image: pgvector/pgvector:pg15
@@ -27,6 +28,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - pyxis_net
 
 volumes:
   pgdata:
+
+networks:
+  pyxis_net:

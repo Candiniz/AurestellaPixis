@@ -2,8 +2,8 @@ import os
 import json
 import time
 import asyncio
+import asyncpg
 import requests
-import difflib
 
 # A Classe FilesApi está oficialmente como LEGADO
 class FilesApi:
@@ -43,9 +43,8 @@ class FilesApi:
             await asyncio.sleep(43200)
 
 class Gemini:
-    def __init__(self, files_api):
+    def __init__(self):
         self.sessao = requests.Session()
-        self.files_api = files_api
 
     def chamar_roteador_gemini(self, comando: str, tentativas=3):
         api_key = os.environ.get("GEMINI_API_KEY")

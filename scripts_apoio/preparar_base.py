@@ -128,14 +128,42 @@ async def popular_banco():
 
     for i, chunk in enumerate(amostra, start=1):
 
-        tokens = contar_tokens(chunk)
+        print(
+            f"\n[DEBUG] Iniciando chunk {i}/{len(amostra)} "
+            f"({len(chunk)} caracteres)",
+            flush=True
+        )
 
-        tokens_amostra += tokens
+        try:
+            tokens = contar_tokens(chunk)
+
+            print(
+                f"[DEBUG] API retornou {tokens} tokens",
+                flush=True
+            )
+
+            tokens_amostra += tokens
+
+        except Exception as e:
+            print(
+                f"\n[ERRO] Falha no chunk {i}",
+                flush=True
+            )
+            print(
+                f"[ERRO] Tipo: {type(e).__name__}",
+                flush=True
+            )
+            print(
+                f"[ERRO] Mensagem: {e}",
+                flush=True
+            )
+            raise
 
         if i % 10 == 0 or i == len(amostra):
             print(
                 f"  {i:3}/{len(amostra)} chunks | "
-                f"{tokens_amostra:,} tokens"
+                f"{tokens_amostra:,} tokens",
+                flush=True
             )
 
     media = tokens_amostra / len(amostra)

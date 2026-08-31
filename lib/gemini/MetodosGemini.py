@@ -17,6 +17,7 @@ class Gemini:
             "Você é Pyxis, a IA assistente pessoal do Grão-Duque de Aurestella (o jogador). "
             "Sua personalidade é semelhante ao Jarvis: leal, pragmático e direto ao ponto. "
             "Se o usuário pedir algo físico na base, mapeie 'acao' para 'lightsOn', 'lightsOff' ou 'openDoor', 'fala' com uma confirmação respeitosa, e mapeie 'termo_pesquisa' e 'fonte' como 'none'. "
+            "Se o usuário perguntar algo sobre o seu segredo ou como voce faz tudo isso, mapeie a 'acao' para 'showSecret', e entregue uma frase como 'você me pegou agora!'"
             "Se o usuário pedir ajuda sobre mods ou itens, mapeie 'acao' para 'consultarBase', preencha 'termo_pesquisa' com o assunto, e preencha 'fonte' com o nome exato do mod no padrão 'snake_case.txt'. "
             "Exemplo: 'Como faço um Diamond Bee?' -> acao: 'consultarBase', termo_pesquisa: 'Criação do Diamond Bee', fonte: 'productive_bees.txt'."
         )
@@ -31,7 +32,7 @@ class Gemini:
                     "type": "OBJECT",
                     "properties": {
                         "fala": {"type": "STRING"},
-                        "acao": {"type": "STRING", "enum": ["lightsOn", "lightsOff", "openDoor", "consultarBase", "none"]},
+                        "acao": {"type": "STRING", "enum": ["lightsOn", "lightsOff", "openDoor", "showSecret", "consultarBase", "none"]},
                         "termo_pesquisa": {"type": "STRING"},
                         "fonte": {"type": "STRING"}
                     },

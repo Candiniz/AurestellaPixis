@@ -6,7 +6,7 @@ Bem-vindo ao repositorio do Aurestella Pyxis, um agente de Inteligencia Artifici
 
 ## Arquitetura do Sistema
 
-O sistema e dividido em microsservicos, garantindo baixa latencia, resiliencia e isolamento.
+End-to-End Agent Pipeline: fluxo completo de execução, desde a captura da intenção no cliente Minecraft até o processamento da requisição, tomada de decisão, recuperação de contexto e geração da resposta.
 
 * **Front-end (Minecraft / ComputerCraft):** Um script Lua assincrono rodando em um Advanced Computer com Chat Box e Advanced Monitors. Possui uma maquina de estados que exibe uma interface animada (um rosto reagindo e mensagens de carregamento) enquanto processa os chamados simultaneamente. O front-end captura gatilhos no chat e aciona o back-end via requisicao HTTP POST.
 * **Back-end (FastAPI / Python):** Um servidor orquestrador hospedado em uma VPS Oracle via Docker. Ele recebe o comando, verifica a seguranca (API Key via header) e inicia o pipeline cognitivo.

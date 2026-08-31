@@ -28,7 +28,7 @@ End-to-End Agent Pipeline: fluxo completo de execução, desde a captura da inte
    |
 [Domínio DuckDNS + HTTPS]
    v
-[Proxy Reverso: Nginx (Porta 443)] -- Descriptografa SSL e repassa --> [Docker: FastAPI (Porta 8000)]
+[Proxy Reverso: Nginx (Porta 443)] -- Descriptografa SSL e repassa --> [Docker: FastAPI-based REST API (Porta 8000)]
    |
 [Segurança] -- Valida Header `X-Pyxis-Key` via `Depends()`
    |

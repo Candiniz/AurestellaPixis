@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS base_conhecimento (
                     id SERIAL PRIMARY KEY,
+                    quest_id TEXT NOT NULL UNIQUE,
                     texto TEXT NOT NULL,
                     embedding vector(768)
                 );
@@ -50,7 +51,6 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(3)
         
     yield
-    task.cancel()
 
 app = FastAPI(lifespan=lifespan)
 

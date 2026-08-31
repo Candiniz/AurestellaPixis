@@ -7,7 +7,7 @@ import asyncio
 
 API_KEY = os.environ["GEMINI_API_KEY"]
 
-MODEL = "gemini-embedding-001"
+MODEL = "gemini-embedding-2"
 EMBEDDING_DIMENSIONS = 768
 
 URL_EMBEDDING = (
@@ -26,56 +26,76 @@ def parsear_quests(texto):
     Agrupa todas as propriedades pertencentes ao mesmo quest_id.
     """
 
-    matches = list(QUEST_START.finditer(texto))
-    quests = []
+    pattern = re.compile(
+        r'quest\.([0-9A-Fa-f]{16})\.(quest_desc|quest_subtitle|title):'
+    )
 
-    for i, match in enumerate(matches):
+    quests = {}
+
+    def limpar_descricao(texto):
+        if not texto:
+            return texto
+
+        texto = re.sub(r'\{image:[^}]*\}', '', texto)
+
+        # Remove espaços/quebras de linha excessivos deixados pela remoção
+        texto = re.sub(r'\n\s*\n+', '\n\n', texto)
+
+        return texto.strip()
+
+    for match in pattern.finditer(texto):
         quest_id = match.group(1)
+        campo = match.group(2)
 
-        inicio = match.start()
+        inicio_valor = match.end()
 
-        if i + 1 < len(matches):
-            fim = matches[i + 1].start()
+        # Procura o início da próxima propriedade.
+        proximo = pattern.search(texto, inicio_valor)
+
+        if proximo:
+            fim_valor = proximo.start()
         else:
-            fim = len(texto)
+            fim_valor = len(texto)
 
-        bloco = texto[inicio:fim]
+        valor = texto[inicio_valor:fim_valor].strip()
 
-        quest = {
-            "quest_id": quest_id,
-            "title": None,
-            "subtitle": None,
-            "description": None,
-        }
+        if quest_id not in quests:
+            quests[quest_id] = {
+                "quest_id": quest_id,
+                "title": None,
+                "subtitle": None,
+                "description": None,
+            }
 
-        title_match = re.search(
-            rf"quest\.{quest_id}\.title:\s*\"([^\"]*)\"",
-            bloco,
-        )
+        if campo == "title":
+            match_valor = re.match(r'"([^"]*)"', valor)
 
-        if title_match:
-            quest["title"] = title_match.group(1)
+            if match_valor:
+                quests[quest_id]["title"] = match_valor.group(1)
 
-        subtitle_match = re.search(
-            rf"quest\.{quest_id}\.quest_subtitle:\s*\"([^\"]*)\"",
-            bloco,
-        )
+        elif campo == "quest_subtitle":
+            match_valor = re.match(r'"([^"]*)"', valor)
 
-        if subtitle_match:
-            quest["subtitle"] = subtitle_match.group(1)
+            if match_valor:
+                quests[quest_id]["subtitle"] = match_valor.group(1)
 
-        desc_match = re.search(
-            rf"quest\.{quest_id}\.quest_desc:\s*\[(.*?)\]",
-            bloco,
-            re.DOTALL,
-        )
+        elif campo == "quest_desc":
+            match_valor = re.match(
+                r'\[(.*?)\]',
+                valor,
+                re.DOTALL,
+            )
 
-        if desc_match:
-            quest["description"] = desc_match.group(1)
+            if match_valor:
+                descricao = match_valor.group(1)
+                descricao = re.sub(
+                    r'\{image:[^}]*\}',
+                    '',
+                    descricao,
+                )
+                quests[quest_id]["description"] = (match_valor.group(1))
 
-        quests.append(quest)
-
-    return quests
+    return list(quests.values())
 
 
 def montar_texto_embedding(quest):
@@ -98,6 +118,7 @@ def montar_texto_embedding(quest):
 
 
 def gerar_embedding(texto, title=None):
+
     payload = {
         "model": f"models/{MODEL}",
         "content": {
@@ -105,16 +126,21 @@ def gerar_embedding(texto, title=None):
                 {"text": texto}
             ]
         },
-        "taskType": "RETRIEVAL_DOCUMENT",
+        "embedContentConfig": {
+            "taskType": "RETRIEVAL_DOCUMENT",
+            "outputDimensionality": 768,
+        },
     }
 
     if title:
-        payload["title"] = title
+        payload["embedContentConfig"]["title"] = title
 
     resposta = requests.post(
         URL_EMBEDDING,
         json=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json"
+        },
         timeout=60,
     )
 
@@ -166,7 +192,7 @@ async def popular_banco():
         )
         return
 
-    amostra = quests[:10]
+    amostra = quests[:4160]
 
     print(
         f"\nTotal de quests encontradas: {len(quests):,}",
@@ -187,32 +213,48 @@ async def popular_banco():
 
     try:
 
-        for i, quest in enumerate(amostra, start=1):
+        print("\n" + "=" * 60, flush=True) 
+        print("INÍCIO DA IMPORTAÇÃO", flush=True) 
+        print("=" * 60, flush=True)
+        print(f"Total de quests encontradas: {len(quests):,}", flush=True) 
+        print(f"Total a processar: {len(amostra):,}", flush=True) 
+        print("Quests já existentes serão ignoradas antes da geração do embedding.", flush=True) 
+        print("=" * 60 + "\n", flush=True)
 
+        processadas = 0 
+        puladas = 0 
+        inseridas = 0 
+        erros = 0
+
+        for i, quest in enumerate(amostra, start=1):
+            quest_id = quest["quest_id"] 
+            print( f"\n[{i}/{len(amostra)}] Quest {quest_id}", flush=True, )
+            
             try:
+                existe = await conn.fetchval(
+                    """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM base_conhecimento
+                        WHERE quest_id = $1
+                    )
+                    """,
+                    quest["quest_id"],
+                )
+
+                if existe:
+                    print( " → Já existe no banco. " "Pulando geração do embedding.", flush=True, )
+                    continue
 
                 texto_embedding = montar_texto_embedding(quest)
-
-                print("=" * 60)
-                print(f"QUEST {i}/{len(amostra)}")
-                print("=" * 60)
-
-                print(f"ID: {quest['quest_id']}")
-                print(f"Title: {quest['title']}")
-                print(f"Subtitle: {quest['subtitle']}")
-
-                print("\nTexto enviado ao embedding:")
-                print(texto_embedding)
-
+                print( " → Quest nova. Gerando embedding...", flush=True, )
+                
                 vetor = gerar_embedding(
                     texto_embedding,
                     title=quest["title"],
                 )
 
-                print(
-                    f"\nEmbedding gerado: "
-                    f"{len(vetor)} dimensões"
-                )
+                print( f" → Embedding gerado: " f"{len(vetor)} dimensões", flush=True, )
 
                 vetor_pgvector = (
                     "["
@@ -222,21 +264,26 @@ async def popular_banco():
 
                 resultado = await conn.fetchrow(
                     """
-                    INSERT INTO base_conhecimento
-                        (texto, embedding)
-                    VALUES
-                        ($1, $2::vector)
+                    INSERT INTO base_conhecimento (quest_id, texto, embedding)
+                    VALUES ($1, $2, $3::vector)
+                    ON CONFLICT (quest_id) DO NOTHING
                     RETURNING id
                     """,
+                    quest["quest_id"],
                     texto_embedding,
                     vetor_pgvector,
                 )
 
-                print(
-                    f"Salvo no PostgreSQL. "
-                    f"ID: {resultado['id']}",
-                    flush=True,
-                )
+                if resultado:
+                    print(
+                        f"Salvo no PostgreSQL. ID: {resultado['id']}",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"Quest {quest['quest_id']} já existe. Pulando.",
+                        flush=True,
+                    )
 
             except Exception as e:
 
@@ -246,10 +293,19 @@ async def popular_banco():
                     flush=True,
                 )
 
-        print(
-            "\nTeste concluído.",
-            flush=True,
-        )
+        # ========================================================= 
+        # RESUMO FINAL 
+        # ========================================================= 
+        print("\n" + "=" * 60, flush=True) 
+        print("IMPORTAÇÃO CONCLUÍDA", flush=True) 
+        print("=" * 60, flush=True) 
+        print( f"Total encontrado: {len(quests):,}", flush=True, ) 
+        print( f"Total processado: {len(amostra):,}", flush=True, ) 
+        print( f"Embeddings gerados: {processadas:,}", flush=True, ) 
+        print( f"Já existentes/pulados: {puladas:,}", flush=True, ) 
+        print( f"Inseridos com sucesso: {inseridas:,}", flush=True, ) 
+        print( f"Erros: {erros:,}", flush=True, ) 
+        print("=" * 60, flush=True)
 
     finally:
         await conn.close()

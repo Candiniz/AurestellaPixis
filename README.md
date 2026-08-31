@@ -11,8 +11,8 @@ End-to-End Agent Pipeline: fluxo completo de execução, desde a captura da inte
 * **Front-end (Minecraft / ComputerCraft):** Um script Lua assincrono rodando em um Advanced Computer com Chat Box e Advanced Monitors. Possui uma maquina de estados que exibe uma interface animada (um rosto reagindo e mensagens de carregamento) enquanto processa os chamados simultaneamente. O front-end captura gatilhos no chat e aciona o back-end via requisicao HTTP POST.
 * **Back-end (FastAPI / Python):** Um servidor orquestrador hospedado em uma VPS Oracle via Docker. Ele recebe o comando, verifica a seguranca (API Key via header) e inicia o pipeline cognitivo.
 * **Pipeline de Inteligencia Artificial (Agentic Routing & RAG Hibrido):**
-  1. **Roteador de Intencoes:** O modelo principal (Gemini Flash-Lite) analisa a frase e decide se e uma acao fisica (lightsOn, lightsOff, openDoor) ou uma requisicao de conhecimento (consultarBase).
-  2. **RAG Vetorial Dinamico:** Se for uma duvida, o sistema aciona o banco de dados PostgreSQL. Atraves da extensao pgvector e Busca de Similaridade por Cosseno, extrai os paragrafos matematicamente relevantes da wiki do jogo. Em paralelo, utiliza Fuzzy Matching no Python para resgatar o contexto de arvores de dependencias locais, enviando um payload enxuto ao modelo.
+  1. **Roteador de Intencoes:** Gemini Flash-Lite classifica a intenção do usuário e produz uma resposta estruturada via JSON Schema, determinando a ação a executar e, para consultas cognitivas, os parâmetros de recuperação.
+  2. **RAG Vetorial Dinamico:** Se for uma duvida, o sistema aciona o banco de dados PostgreSQL. Atraves da extensao pgvector e Busca vetorial por distância de cosseno usando pgvector, extrai os paragrafos matematicamente relevantes da wiki do jogo. Em paralelo, utiliza Fuzzy Matching no Python para resgatar o contexto de arvores de dependencias locais, enviando um payload enxuto ao modelo.
 * **Telemetria Assincrona:** A cada requisicao finalizada, o uso de tokens (prompt, output) e a latencia (ms) sao registrados silenciosamente (via BackgroundTasks do FastAPI) na base de dados para exibicao em monitores in-game.
 
 
@@ -60,7 +60,7 @@ BIFURCAÇÃO DE INTENÇÃO:
 **Back-end & IA:**
 * Python 3.9-slim
 * FastAPI & Uvicorn
-* Google Gemini API (gemini-3.5-flash-lite, gemini-3.5-flash, text-embedding-004)
+* Google Gemini API (gemini-3.5-flash-lite, gemini-3.5-flash, text-embedding-2)
 * Pydantic
 
 **Banco de Dados:**

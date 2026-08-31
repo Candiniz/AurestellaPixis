@@ -89,7 +89,7 @@ class Gemini:
             # Resgata as 3 quests matematicamente mais próximas da dúvida
             linhas = await conn.fetch('''
                 SELECT texto FROM base_conhecimento 
-                ORDER BY embedding <=> $1::vector LIMIT 3
+                ORDER BY embedding <=> $1::vector LIMIT 5
             ''', vetor_pgvector)
             await conn.close()
             
